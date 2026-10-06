@@ -1,0 +1,106 @@
+name: ai-customer-service-p4b-loadtest
+
+services:
+  redis:
+    image: redis:7.4.10-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    command: ["redis-server", "--requirepass", "loadtest-redis-password", "--appendonly", "yes", "--appendfsync", "always"]
+    volumes:
+      - loadtest_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "loadtest-redis-password", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    networks: [loadtest]
+
+  mock-bridge:
+    image: ai-customer-service-webhook-loadtest:p4b
+    build:
+      context: ..
+      dockerfile: Dockerfile.loadtest
+    command: ["uvicorn", "loadtest.mock_bridge:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+    environment:
+      LOADTEST_WEBHOOK_SECRET: ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+      LOADTEST_REDIS_URL: redis://redis:6379/0
+      LOADTEST_REDIS_PASSWORD: loadtest-redis-password
+      LOADTEST_BRIDGE_DELAY_MS: ${LOADTEST_BRIDGE_DELAY_MS:-500}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    networks: [loadtest]
+
+  webhook-gateway:
+    image: ai-customer-service-webhook-adapter:p4b-loadtest
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      CHATWOOT_ADAPTER_INGRESS_TOKEN: iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
+      WEBHOOK_ADAPTER_REDIS_URL: redis://redis:6379/0
+      WEBHOOK_ADAPTER_REDIS_PASSWORD: loadtest-redis-password
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ready', timeout=2)"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    networks: [loadtest]
+
+  webhook-worker:
+    image: ai-customer-service-webhook-adapter:p4b-loadtest
+    command: ["python", "-m", "src.worker"]
+    environment:
+      CHATWOOT_WEBHOOK_SECRET: ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+      WEBHOOK_ADAPTER_REDIS_URL: redis://redis:6379/0
+      WEBHOOK_ADAPTER_REDIS_PASSWORD: loadtest-redis-password
+      CHATWOOT_ADAPTER_BRIDGE_URL: http://mock-bridge:8000/webhook/chatwoot
+      WEBHOOK_ADAPTER_CONCURRENCY: ${WEBHOOK_ADAPTER_CONCURRENCY:-8}
+      WEBHOOK_ADAPTER_PREFETCH: "64"
+      WEBHOOK_ADAPTER_BUFFER_LIMIT: "256"
+      WEBHOOK_ADAPTER_REQUEST_TIMEOUT_SECONDS: "10"
+      CHATWOOT_ADAPTER_MAX_ATTEMPTS: "3"
+      WEBHOOK_ADAPTER_LEASE_TTL_SECONDS: ${WEBHOOK_ADAPTER_LEASE_TTL_SECONDS:-15}
+      WEBHOOK_ADAPTER_LEASE_RENEW_SECONDS: ${WEBHOOK_ADAPTER_LEASE_RENEW_SECONDS:-5}
+    depends_on:
+      redis:
+        condition: service_healthy
+      mock-bridge:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "src.healthcheck"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    networks: [loadtest]
+
+  loadgen:
+    image: ai-customer-service-webhook-loadtest:p4b
+    environment:
+      LOADTEST_GATEWAY_URL: http://webhook-gateway:8080/webhook/iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
+      LOADTEST_WORKER_METRICS_URL: http://webhook-worker:9101
+      LOADTEST_REDIS_URL: redis://redis:6379/0
+      LOADTEST_REDIS_PASSWORD: loadtest-redis-password
+      LOADTEST_SCENARIOS: ${LOADTEST_SCENARIOS:-sustained,burst,ordered,retry-isolation}
+      LOADTEST_EXPECTED_CONCURRENCY: ${WEBHOOK_ADAPTER_CONCURRENCY:-8}
+    depends_on:
+      webhook-gateway:
+        condition: service_healthy
+      webhook-worker:
+        condition: service_healthy
+      mock-bridge:
+        condition: service_healthy
+    networks: [loadtest]
+
+volumes:
+  loadtest_redis:
+
+networks:
+  loadtest:
+    internal: true

@@ -1,0 +1,20 @@
+FROM python:3.11-slim@sha256:9c900dea9e8fb7e16277c179b555cc72d29a352dbc33cff48ad5a0412fd5bfc7
+
+WORKDIR /app
+
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+COPY requirements.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+
+COPY src/ ./src/
+COPY loadtest/ ./loadtest/
+
+USER 65532:65532
+
+CMD ["python", "-m", "loadtest.loadgen"]

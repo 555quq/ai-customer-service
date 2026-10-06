@@ -1,0 +1,19 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# 敏感配置
+.env
+.env.local
+
+# 运行时
+*.log
+*.pid
+
+# 构建
+dist/
+build/

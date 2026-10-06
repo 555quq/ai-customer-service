@@ -1,0 +1,131 @@
+name: CI release gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "24.10.0"
+  PNPM_VERSION: "10.34.0"
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            bridge-service/requirements.txt
+            bridge-service/requirements-runtime.txt
+      - name: Install dependencies
+        working-directory: bridge-service
+        run: python -m pip install -r requirements.txt
+      - name: Compile
+        run: python -m compileall -q bridge-service/src
+      - name: Test
+        run: python -m pytest bridge-service/tests -q
+
+  frontend:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install locked dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Test
+        working-directory: frontend
+        run: pnpm test -- --run
+      - name: Typecheck
+        working-directory: frontend
+        run: pnpm typecheck
+      - name: Build
+        working-directory: frontend
+        run: pnpm build
+
+  release-config:
+    name: Release configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare example environment
+        shell: pwsh
+        run: |
+          Copy-Item .env.example .env
+          Copy-Item bridge-service/.env.example bridge-service/.env
+      - name: Validate release, Compose, Grafana and Prometheus
+        shell: pwsh
+        run: ./scripts/release-check.ps1 -Quick
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, release-config]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Prepare example environment
+        shell: pwsh
+        run: |
+          Copy-Item .env.example .env
+          Copy-Item bridge-service/.env.example bridge-service/.env
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Build release applications
+        run: docker compose build bridge admin agent
+
+  security-scan:
+    name: Repository security scan
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2.3.9
+
+  open-source-check:
+    name: Open-source release check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate public repository content
+        shell: pwsh
+        run: ./scripts/open-source-check.ps1 -Quick

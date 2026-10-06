@@ -1,0 +1,166 @@
+# Prometheus 告警规则
+groups:
+  - name: ai-customer-service
+    rules:
+      - alert: BridgeServiceDown
+        expr: up{job="bridge-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bridge Service 不可达"
+          description: "Bridge Service 已停止响应超过 1 分钟"
+
+      - alert: BridgeHighErrorRate
+        expr: |
+          sum(rate(ai_customer_service_http_requests_total{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(ai_customer_service_http_requests_total[5m])), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bridge 5xx 比例过高"
+          description: "过去 10 分钟 Bridge 的 5xx 请求比例持续超过 5%。"
+
+      - alert: AIProviderHighErrorRate
+        expr: |
+          sum by (provider) (rate(ai_customer_service_ai_requests_total{result="error"}[5m]))
+          / clamp_min(sum by (provider) (rate(ai_customer_service_ai_requests_total[5m])), 0.001) > 0.10
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AI Provider 错误率过高"
+          description: "AI Provider {{ $labels.provider }} 的错误比例持续超过 10%。"
+
+      - alert: AIProviderSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, provider) (rate(ai_customer_service_ai_request_duration_seconds_bucket[10m]))
+          ) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI Provider 响应过慢"
+          description: "AI Provider {{ $labels.provider }} 的 P95 响应时间持续超过 10 秒。"
+
+      - alert: ChatwootApiErrors
+        expr: sum(rate(ai_customer_service_chatwoot_requests_total{result="error"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chatwoot API 持续失败"
+          description: "Chatwoot API 调用在过去 10 分钟持续出现错误。"
+
+      - alert: QdrantOperationErrors
+        expr: increase(ai_customer_service_qdrant_operations_total{result="error"}[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Qdrant 操作失败"
+          description: "最近 10 分钟发生了 Qdrant 操作错误。"
+
+      - alert: KnowledgeIngestionFailed
+        expr: increase(ai_customer_service_knowledge_jobs_total{status="failed"}[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "知识库导入失败"
+          description: "最近 15 分钟至少有一个知识库任务失败。"
+
+      - alert: WebhookProcessingFailures
+        expr: increase(ai_customer_service_webhooks_total{result=~"processing_failed|error"}[10m]) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook 处理连续失败"
+          description: "最近 10 分钟 Chatwoot Webhook 处理失败超过 2 次。"
+
+      - alert: WebhookAdapterGatewayDown
+        expr: up{job="webhook-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Webhook Gateway 不可达"
+          description: "私有 Webhook 入口已停止响应超过 1 分钟。"
+
+      - alert: WebhookAdapterWorkerDown
+        expr: up{job="webhook-worker"} == 0 or time() - webhook_adapter_worker_heartbeat_unixtime > 30
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Webhook Worker 心跳中断"
+          description: "Webhook Worker 无法抓取或最近心跳已超过 30 秒。"
+
+      - alert: WebhookAdapterQueueBacklog
+        expr: webhook_adapter_queue_depth > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook 队列持续积压"
+          description: "主 Webhook Stream 连续 5 分钟保留超过 100 条事件。"
+
+      - alert: WebhookAdapterOldestEventStale
+        expr: webhook_adapter_oldest_event_age_seconds > 120
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook 最老事件等待过久"
+          description: "Worker 中最老的未完成事件已连续 5 分钟超过 120 秒。"
+
+      - alert: WebhookAdapterBufferNearCapacity
+        expr: webhook_adapter_buffered_events >= 204
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook 本地缓冲接近上限"
+          description: "Worker 本地缓冲连续 2 分钟达到默认 256 上限的约 80%。"
+
+      - alert: WebhookAdapterLeaseLost
+        expr: increase(webhook_adapter_lease_events_total{result="lost"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Webhook Worker 丢失单实例租约"
+          description: "Worker 最近 10 分钟丢失过 Redis 租约，已停止消费以保护会话顺序。"
+
+      - alert: WebhookAdapterQueueWaitSlow
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(webhook_adapter_queue_wait_seconds_bucket[5m]))
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook 排队 P95 超过目标"
+          description: "入队到首次取得并发槽的 P95 等待时间连续 5 分钟超过 3 秒。"
+
+      - alert: WebhookAdapterDeadLetter
+        expr: increase(webhook_adapter_dead_letter_total[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Webhook 事件进入死信"
+          description: "最近 10 分钟至少一个事件因永久错误或重试耗尽进入死信。"
+
+      - alert: HumanHandoffSpike
+        expr: sum(rate(ai_customer_service_handoffs_total{result="success"}[10m])) > 0.5
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "转人工量异常升高"
+          description: "转人工速率持续超过每秒 0.5 次，请检查 AI 置信度和知识库质量。"

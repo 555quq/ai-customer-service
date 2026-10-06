@@ -1,0 +1,31 @@
+# Prometheus 配置（Bridge Service 与 Prometheus 运行在同一 Compose 网络）
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# 告警规则文件
+rule_files:
+  - 'alerts.yml'
+
+# 抓取配置
+scrape_configs:
+  # Bridge Service 监控（通过 Compose 服务名访问）
+  - job_name: 'bridge-service'
+    static_configs:
+      - targets: ['bridge:8000']
+    metrics_path: '/metrics'
+
+  - job_name: 'webhook-gateway'
+    static_configs:
+      - targets: ['webhook-gateway:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'webhook-worker'
+    static_configs:
+      - targets: ['webhook-worker:9101']
+    metrics_path: '/metrics'
+
+  # Prometheus 自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

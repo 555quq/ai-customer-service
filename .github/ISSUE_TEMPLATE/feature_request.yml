@@ -1,0 +1,21 @@
+name: 功能建议
+description: 提议新能力或改进
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: 预期价值
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案

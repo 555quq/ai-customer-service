@@ -1,0 +1,42 @@
+# ===== 敏感配置（含密钥，禁止提交）=====
+.env
+.env.*
+!.env.example
+*.secret
+
+# ===== 依赖与构建产物 =====
+node_modules/
+dist/
+build/
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.tsbuildinfo
+
+# ===== 模型缓存（fastembed 离线 embedding 模型，勿提交）=====
+.fastembed_cache/
+bridge-service/data/model_cache/
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+__MACOSX/
+
+# ===== 日志与运行时文件 =====
+*.log
+*.log.err
+*.pid
+*.bak
+*.old
+*.backup
+bridge-service/data/runtime/
+bridge-service/config/audit.jsonl
+diagnostics/
+backups/
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp

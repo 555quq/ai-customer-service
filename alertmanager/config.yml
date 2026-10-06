@@ -1,0 +1,114 @@
+global:
+  # 全局配置
+  resolve_timeout: 5m
+
+  # SMTP 邮件配置（示例）
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alert@yourcompany.com'
+  smtp_auth_username: 'alert@yourcompany.com'
+  smtp_auth_password: 'your_email_password'
+  smtp_require_tls: true
+
+# 告警路由配置
+route:
+  # 默认接收者
+  receiver: 'default'
+
+  # 分组配置
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+
+  # 子路由
+  routes:
+    # 紧急告警 -> 企业微信 + 邮件
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 5s
+      repeat_interval: 5m
+
+    # 警告告警 -> 邮件
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      repeat_interval: 30m
+
+    # 信息告警 -> 仅记录
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 1m
+      repeat_interval: 2h
+
+# 告警抑制规则
+inhibit_rules:
+  # 当服务完全宕机时，抑制其他相关告警
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']
+
+# 接收者配置
+receivers:
+  # 默认接收者（邮件）
+  - name: 'default'
+    email_configs:
+      - to: 'ops@yourcompany.com'
+        headers:
+          Subject: '[AI客服] {{ .GroupLabels.alertname }}'
+        html: |
+          <h3>告警详情</h3>
+          <ul>
+          {{ range .Alerts }}
+            <li><b>告警名称:</b> {{ .Labels.alertname }}</li>
+            <li><b>严重程度:</b> {{ .Labels.severity }}</li>
+            <li><b>实例:</b> {{ .Labels.instance }}</li>
+            <li><b>描述:</b> {{ .Annotations.description }}</li>
+            <li><b>时间:</b> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</li>
+            <hr>
+          {{ end }}
+          </ul>
+
+  # 紧急告警（企业微信 + 邮件）
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'ops-oncall@yourcompany.com'
+        headers:
+          Subject: '🚨 [紧急] {{ .GroupLabels.alertname }}'
+    wechat_configs:
+      - corp_id: 'YOUR_CORP_ID'
+        to_party: 'YOUR_PARTY_ID'
+        agent_id: 'YOUR_AGENT_ID'
+        api_secret: 'YOUR_API_SECRET'
+        send_resolved: true
+        message: |
+          🚨 紧急告警
+
+          告警: {{ .GroupLabels.alertname }}
+          {{ range .Alerts }}
+          实例: {{ .Labels.instance }}
+          描述: {{ .Annotations.description }}
+          时间: {{ .StartsAt.Format "15:04:05" }}
+          {{ end }}
+
+  # 警告告警（邮件）
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'ops@yourcompany.com'
+        headers:
+          Subject: '⚠️ [警告] {{ .GroupLabels.alertname }}'
+
+  # 信息告警（仅记录）
+  - name: 'info-alerts'
+    email_configs:
+      - to: 'ops-log@yourcompany.com'
+        headers:
+          Subject: 'ℹ️ [信息] {{ .GroupLabels.alertname }}'
+
+# 告警模板（可选）
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "composite": true
+  },
+  "files": [],
+  "include": [],
+  "references": [
+    { "path": "./packages/shared/tsconfig.json" },
+    { "path": "./apps/widget/tsconfig.json" },
+    { "path": "./apps/agent/tsconfig.json" },
+    { "path": "./apps/admin/tsconfig.json" }
+  ]
+}

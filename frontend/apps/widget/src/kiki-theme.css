@@ -1,0 +1,521 @@
+/* ============================================================
+   腾讯云 Kiki AI 助手风格 · 复刻主题
+   来源: cloud.tencent.com/act/pro/featured-202607 页面 AI 助手窗口
+   ============================================================ */
+
+/* ---------- 设计令牌（来自腾讯 Kiki light 主题 CSS 变量） ---------- */
+:root, :host {
+  --kiki-panel-bg: #f7f8fb;
+  --kiki-panel-text: rgba(0, 0, 0, 0.9);
+  --kiki-panel-shadow: 0 24px 64px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  --kiki-title-color: rgba(0, 0, 0, 0.9);
+  --kiki-muted: rgba(0, 0, 0, 0.7);
+  --kiki-soft: rgba(0, 0, 0, 0.5);
+  --kiki-weak: rgba(0, 0, 0, 0.3);
+  --kiki-primary: #0052d9;
+  --kiki-primary-hover: #266fe8;
+  --kiki-surface: rgba(255, 255, 255, 0.96);
+  --kiki-input-bg: rgba(255, 255, 255, 0.96);
+  --kiki-input-border: #e6e9ef;
+  --kiki-input-border-active: #3a89ff;
+  --kiki-input-placeholder: rgba(0, 0, 0, 0.48);
+  --kiki-bubble-border: #e6e9ef;
+  --kiki-user-bubble: linear-gradient(135deg, #4f9dff, #4960ff);
+  --kiki-user-bubble-text: #ffffff;
+  --kiki-pill-bg: #f2f4f8;
+  --kiki-pill-border: #e2e5e9;
+  --kiki-pill-text: rgba(0, 0, 0, 0.9);
+  --kiki-pill-hover-bg: #e9ecf1;
+  --kiki-pill-active-bg: #e3ecff;
+  --kiki-pill-active-text: #0052d9;
+  --kiki-pill-active-border: #bbd3fb;
+  --kiki-send-bg: #0052d9;
+  --kiki-send-bg-active: #478dff;
+  --kiki-send-disabled: #e6e9ef;
+  --kiki-scrollbar-thumb: rgba(0, 0, 0, 0.1);
+
+  /* 旋转渐变边框四色 */
+  --kiki-g-1: #56f1ff;
+  --kiki-g-2: #5fbcff;
+  --kiki-g-3: #3974ff;
+  --kiki-g-4: #fe6da5;
+}
+
+/* ---------- 启动按钮（圆形头像） ---------- */
+.kiki-launcher {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  z-index: 9999;
+  background: linear-gradient(135deg, #4f9dff, #4960ff);
+  box-shadow: 0 8px 24px rgba(0, 82, 217, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.kiki-launcher:hover {
+  transform: scale(1.06);
+  box-shadow: 0 12px 32px rgba(0, 82, 217, 0.4);
+}
+
+.kiki-launcher--open {
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* 头像图形（机器人脸） */
+.kiki-launcher-avatar {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+/* ---------- 助手窗口 ---------- */
+.kiki-window {
+  position: fixed;
+  right: 24px;
+  top: 0;
+  bottom: 0;
+  width: 405px;
+  z-index: 9999;
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* 旋转渐变边框（crisp 4px） */
+.kiki-border {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.kiki-border::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 300%;
+  height: 300%;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg,
+    var(--kiki-g-1),
+    var(--kiki-g-2),
+    var(--kiki-g-3),
+    var(--kiki-g-4),
+    var(--kiki-g-1)
+  );
+  animation: kiki-border-spin 8s linear infinite;
+}
+
+/* 模糊光晕（aura） */
+.kiki-aura {
+  position: absolute;
+  inset: -8px;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+  filter: blur(16px);
+  opacity: 0.7;
+}
+
+.kiki-aura::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 300%;
+  height: 300%;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg,
+    var(--kiki-g-1),
+    var(--kiki-g-2),
+    var(--kiki-g-3),
+    var(--kiki-g-4),
+    var(--kiki-g-1)
+  );
+  animation: kiki-border-spin 8s linear infinite;
+}
+
+@keyframes kiki-border-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ---------- 面板 ---------- */
+.kiki-panel {
+  position: absolute;
+  inset: 4px;
+  background: var(--kiki-panel-bg);
+  box-shadow: var(--kiki-panel-shadow);
+  display: flex;
+  flex-direction: column;
+  z-index: 3;
+  overflow: hidden;
+}
+
+/* 头部 */
+.kiki-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 20px 14px;
+  background: linear-gradient(180deg, rgba(72, 167, 255, 0.12) 0%, rgba(72, 167, 255, 0) 100%);
+  flex-shrink: 0;
+}
+
+.kiki-header-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f9dff, #4960ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.kiki-header-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--kiki-title-color);
+  line-height: 1.3;
+}
+
+.kiki-header-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--kiki-soft);
+}
+
+.kiki-header-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--kiki-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.kiki-header-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--kiki-panel-text);
+}
+
+/* 消息区 */
+.kiki-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--kiki-scrollbar-thumb) transparent;
+}
+
+.kiki-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.kiki-messages::-webkit-scrollbar-thumb {
+  background: var(--kiki-scrollbar-thumb);
+  border-radius: 3px;
+}
+
+/* 空状态（欢迎） */
+.kiki-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 20px 20px;
+  text-align: center;
+}
+
+.kiki-empty-hero {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #4f9dff, #4960ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  margin-bottom: 16px;
+  box-shadow: 0 12px 28px rgba(0, 82, 217, 0.22);
+}
+
+.kiki-empty-title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--kiki-title-color);
+}
+
+.kiki-empty-desc {
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--kiki-soft);
+}
+
+/* 推荐问题（quick pills） */
+.kiki-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.kiki-pill {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--kiki-pill-border);
+  border-radius: 8px;
+  background: var(--kiki-pill-bg);
+  color: var(--kiki-pill-text);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.kiki-pill:hover {
+  background: var(--kiki-pill-hover-bg);
+  border-color: var(--kiki-input-border-active);
+}
+
+/* 气泡 */
+.kiki-row {
+  display: flex;
+  margin-bottom: 14px;
+  gap: 8px;
+}
+
+.kiki-row--user {
+  justify-content: flex-end;
+}
+
+.kiki-bubble-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f9dff, #4960ff);
+  color: #fff;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.kiki-bubble {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+  position: relative;
+}
+
+.kiki-bubble--assistant {
+  background: var(--kiki-surface);
+  border: 1px solid var(--kiki-bubble-border);
+  color: var(--kiki-panel-text);
+  border-top-left-radius: 4px;
+}
+
+.kiki-bubble--user {
+  background: var(--kiki-user-bubble);
+  color: var(--kiki-user-bubble-text);
+  border-top-right-radius: 4px;
+  box-shadow: 0 8px 20px rgba(0, 82, 217, 0.18);
+}
+
+.kiki-bubble-name {
+  display: block;
+  font-size: 12px;
+  color: var(--kiki-soft);
+  margin-bottom: 4px;
+}
+
+.kiki-bubble-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* 打字指示器 */
+.kiki-typing {
+  display: flex;
+  gap: 4px;
+  padding: 6px 2px;
+}
+
+.kiki-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kiki-soft);
+  animation: kiki-blink 1.2s infinite;
+}
+
+.kiki-typing span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.kiki-typing span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes kiki-blink {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* 输入区 */
+.kiki-input-area {
+  flex-shrink: 0;
+  padding: 12px 16px 16px;
+  background: var(--kiki-panel-bg);
+}
+
+.kiki-input-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  background: var(--kiki-input-bg);
+  border: 1px solid var(--kiki-input-border);
+  border-radius: 10px;
+  padding: 6px 6px 6px 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.kiki-input-box--focused {
+  border-color: var(--kiki-input-border-active);
+  box-shadow: 0 0 0 3px rgba(58, 137, 255, 0.12);
+}
+
+.kiki-input-box textarea {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--kiki-panel-text);
+  min-height: 24px;
+  max-height: 108px;
+  padding: 6px 0;
+}
+
+.kiki-input-box textarea::placeholder {
+  color: var(--kiki-input-placeholder);
+}
+
+.kiki-input-box textarea:disabled {
+  opacity: 0.6;
+}
+
+.kiki-send-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: var(--kiki-send-bg);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+}
+
+.kiki-send-btn:hover:not(:disabled) {
+  background: var(--kiki-send-bg-active);
+  box-shadow: 0 6px 16px rgba(0, 82, 217, 0.28);
+}
+
+.kiki-send-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.kiki-send-btn:disabled {
+  background: var(--kiki-send-disabled);
+  cursor: not-allowed;
+}
+
+/* 转人工成功徽标 */
+.kiki-handoff-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0052d9;
+  background: #e3ecff;
+  border: 1px solid #bbd3fb;
+}
+
+/* 来源引用（AI 引用知识库） */
+.kiki-sources {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--kiki-pill-border);
+  font-size: 11px;
+  color: var(--kiki-soft);
+}
+
+/* 移动端适配 */
+@media (max-width: 480px) {
+  .kiki-window {
+    right: 0;
+    width: 100%;
+  }
+  .kiki-launcher {
+    right: 16px;
+    bottom: 16px;
+  }
+}

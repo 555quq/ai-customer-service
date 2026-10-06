@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能客服 - Chatwoot Widget 集成示例</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #718096;
+            margin-bottom: 40px;
+        }
+
+        .demo-section {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+
+        .demo-section h2 {
+            font-size: 1.5rem;
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+
+        .demo-section p {
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .feature-list {
+            text-align: left;
+            display: inline-block;
+            margin: 20px 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            color: #4a5568;
+        }
+
+        .feature-list li:before {
+            content: "✓ ";
+            color: #48bb78;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin: 20px 10px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: left;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #48bb78;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin: 10px 0;
+        }
+
+        .info-box {
+            background: #edf2f7;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .info-box strong {
+            color: #2d3748;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI 智能客服系统</h1>
+        <p class="subtitle">Chatwoot Widget 集成示例</p>
+
+        <div class="status">✓ Chatwoot Widget 已加载</div>
+
+        <div class="demo-section">
+            <h2>📝 功能演示</h2>
+            <p>点击右下角的聊天图标，即可体验 AI 智能客服功能：</p>
+            <ul class="feature-list">
+                <li>AI 自动回答常见问题</li>
+                <li>智能意图识别</li>
+                <li>低置信度自动转人工</li>
+                <li>连续未解决自动转人工</li>
+                <li>完整的对话历史记录</li>
+                <li>文件上传和富文本支持</li>
+            </ul>
+        </div>
+
+        <div class="demo-section">
+            <h2>🔧 集成步骤</h2>
+            <div class="info-box">
+                <strong>步骤 1:</strong> 在 Chatwoot 管理后台获取 Website Token
+            </div>
+
+            <div class="info-box">
+                <strong>步骤 2:</strong> 将以下代码添加到你的网页 &lt;head&gt; 标签中
+            </div>
+
+            <div class="code-block">
+&lt;script&gt;
+  (function(d,t) {
+    var BASE_URL="http://localhost:3000";
+    var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+    g.src=BASE_URL+"/packs/js/sdk.js";
+    s.parentNode.insertBefore(g,s);
+    g.onload=function(){
+      window.chatwootSDK.run({
+        websiteToken: 'YOUR_WEBSITE_TOKEN',
+        baseUrl: BASE_URL
+      })
+    }
+  })(document,"script");
+&lt;/script&gt;
+            </div>
+
+            <div class="info-box">
+                <strong>步骤 3:</strong> 配置 Webhook 连接 Bridge Service
+                <br><br>
+                在 Chatwoot 管理后台：<br>
+                设置 → 集成 → Webhooks<br>
+                URL: <code>http://bridge-service:8000/webhook/chatwoot</code><br>
+                事件: <code>message_created</code>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🎨 自定义样式</h2>
+            <p>你可以通过 Chatwoot 管理后台自定义 Widget 的样式：</p>
+            <ul class="feature-list">
+                <li>品牌颜色和 Logo</li>
+                <li>欢迎消息</li>
+                <li>Widget 位置</li>
+                <li>离线消息表单</li>
+            </ul>
+        </div>
+
+        <button class="cta-button" onclick="openChatWidget()">
+            💬 打开客服窗口
+        </button>
+
+        <button class="cta-button" onclick="toggleChatWidget()">
+            🔄 切换显示/隐藏
+        </button>
+
+        <footer>
+            <p>AI 智能客服系统 v1.0</p>
+            <p>技术栈: Chatwoot + Dify + Bridge Service</p>
+        </footer>
+    </div>
+
+    <!-- Chatwoot Widget 集成代码 -->
+    <script>
+      (function(d,t) {
+        var BASE_URL="http://localhost:3000";
+        var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+        g.src=BASE_URL+"/packs/js/sdk.js";
+        s.parentNode.insertBefore(g,s);
+        g.onload=function(){
+          window.chatwootSDK.run({
+            websiteToken: 'YOUR_WEBSITE_TOKEN', // 替换为实际的 Token
+            baseUrl: BASE_URL
+          })
+        }
+      })(document,"script");
+
+      // 控制函数
+      function openChatWidget() {
+        if (window.$chatwoot) {
+          window.$chatwoot.toggle('open');
+        } else {
+          alert('Chatwoot Widget 尚未加载完成，请稍后再试');
+        }
+      }
+
+      function toggleChatWidget() {
+        if (window.$chatwoot) {
+          window.$chatwoot.toggle();
+        }
+      }
+
+      // Widget 事件监听（可选）
+      window.addEventListener('chatwoot:ready', function() {
+        console.log('✓ Chatwoot Widget 已就绪');
+
+        // 设置用户信息（可选）
+        // window.$chatwoot.setUser('USER_ID', {
+        //   email: 'user@example.com',
+        //   name: '张三',
+        //   avatar_url: 'https://example.com/avatar.jpg',
+        //   phone_number: '+86 138 0000 0000'
+        // });
+      });
+
+      window.addEventListener('chatwoot:error', function() {
+        console.error('✗ Chatwoot Widget 加载失败');
+      });
+    </script>
+</body>
+</html>

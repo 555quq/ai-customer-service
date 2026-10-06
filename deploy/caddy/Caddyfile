@@ -1,0 +1,74 @@
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+}
+
+{$ADMIN_HOST} {
+	import security_headers
+	@admin_allowed {
+		host {$ADMIN_HOST}
+		remote_ip __ADMIN_ALLOWED_CIDRS__
+	}
+	@admin_host host {$ADMIN_HOST}
+	reverse_proxy @admin_allowed admin:8080
+	respond @admin_host "forbidden" 403
+}
+
+{$AGENT_HOST} {
+	import security_headers
+	reverse_proxy agent:8080
+}
+
+{$WIDGET_HOST} {
+	import security_headers
+	@widget_asset {
+		method GET
+		path /assets/widget.js
+	}
+	@widget_config {
+		method GET
+		path /api/widget/config
+	}
+	@widget_session {
+		method POST
+		path /api/widget/session
+	}
+	@widget_chat {
+		method POST
+		path /api/chat
+	}
+	@widget_handoff {
+		method GET
+		path /api/chat/handoff
+	}
+	@widget_ws {
+		method GET
+		path /ws/widget
+	}
+	reverse_proxy @widget_asset admin:8080
+	reverse_proxy @widget_config admin:8080
+	reverse_proxy @widget_session admin:8080
+	reverse_proxy @widget_chat admin:8080
+	reverse_proxy @widget_handoff admin:8080
+	reverse_proxy @widget_ws admin:8080
+	respond "not found" 404
+}
+
+{$CHATWOOT_HOST} {
+	import security_headers
+	@chatwoot_allowed {
+		host {$CHATWOOT_HOST}
+		remote_ip __ADMIN_ALLOWED_CIDRS__
+	}
+	@chatwoot_host host {$CHATWOOT_HOST}
+	reverse_proxy @chatwoot_allowed chatwoot-web:3000
+	respond @chatwoot_host "forbidden" 403
+}

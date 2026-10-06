@@ -1,0 +1,83 @@
+name: ai-customer-service
+
+services:
+  caddy:
+    image: "${CADDY_IMAGE:?CADDY_IMAGE must be a pinned Caddy image}"
+    container_name: ai-customer-service-caddy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        ranges="$$(printf '%s' "$${ADMIN_ALLOWED_CIDRS}" | tr ',' ' ')"
+        sed "s#__ADMIN_ALLOWED_CIDRS__#$${ranges}#g" /etc/caddy/Caddyfile.template > /etc/caddy/Caddyfile
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required for production ingress}
+      ADMIN_HOST: ${ADMIN_HOST:?ADMIN_HOST is required}
+      AGENT_HOST: ${AGENT_HOST:?AGENT_HOST is required}
+      WIDGET_HOST: ${WIDGET_HOST:?WIDGET_HOST is required}
+      CHATWOOT_HOST: ${CHATWOOT_HOST:?CHATWOOT_HOST is required}
+      ADMIN_ALLOWED_CIDRS: ${ADMIN_ALLOWED_CIDRS:?ADMIN_ALLOWED_CIDRS is required}
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+      - "0.0.0.0:443:443/udp"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile.template:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      admin:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+      chatwoot-web:
+        condition: service_healthy
+    networks:
+      - edge
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  admin:
+    networks:
+      - internal
+      - edge
+
+  agent:
+    networks:
+      - internal
+      - edge
+
+  chatwoot-web:
+    environment:
+      FRONTEND_URL: https://${CHATWOOT_HOST}
+      FORCE_SSL: "true"
+      ENABLE_ACCOUNT_SIGNUP: "false"
+      DISABLE_EMAIL_CONFIRMATION: "false"
+    networks:
+      - internal
+      - edge
+
+  bridge:
+    environment:
+      ENVIRONMENT: production
+      AUTH_COOKIE_SECURE: "true"
+      AUTH_ALLOWED_ORIGINS: https://${ADMIN_HOST},https://${AGENT_HOST}
+      WIDGET_PUBLIC_BASE_URL: https://${WIDGET_HOST}
+      WIDGET_HOST: ${WIDGET_HOST}
+
+volumes:
+  caddy_data:
+    name: ai_caddy_data
+    external: true
+  caddy_config:
+    name: ai_caddy_config
+    external: true
+
+networks:
+  edge:
+    name: ai-customer-service-edge
+    driver: bridge

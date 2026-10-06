@@ -1,0 +1,104 @@
+services:
+  postgres:
+    container_name: ai-customer-service-a0-postgres
+    ports: !override
+      - "${POSTGRES_PORT:-25432}:5432"
+
+  redis:
+    container_name: ai-customer-service-a0-redis
+    ports: !override
+      - "${REDIS_PORT_EXTERNAL:-26379}:6379"
+
+  chatwoot-web:
+    container_name: ai-customer-service-a0-chatwoot-web
+    environment:
+      FRONTEND_URL: ${CHATWOOT_FRONTEND_URL:-http://localhost:13000}
+    ports: !override
+      - "${CHATWOOT_PORT:-13000}:3000"
+    volumes: !override
+      - chatwoot_storage:/app/storage
+
+  chatwoot-prepare:
+    container_name: ai-customer-service-a0-chatwoot-prepare
+
+  chatwoot-worker:
+    container_name: ai-customer-service-a0-chatwoot-worker
+    volumes: !override
+      - chatwoot_storage:/app/storage
+
+  qdrant:
+    container_name: ai-customer-service-a0-qdrant
+    ports: !override
+      - "${QDRANT_PORT:-16334}:6333"
+
+  bridge:
+    container_name: ai-customer-service-a0-bridge
+    env_file: !override
+      - path: ./diagnostics/a0/bridge.env
+        required: false
+    environment:
+      AUTH_ALLOWED_ORIGINS: http://localhost:15174,http://127.0.0.1:15174,http://localhost:15175,http://127.0.0.1:15175
+    ports: !override
+      - "${BRIDGE_PORT:-18000}:8000"
+    volumes: !override
+      - ./diagnostics/a0/bridge-data:/app/data
+
+  webhook-gateway:
+    container_name: ai-customer-service-a0-webhook-gateway
+
+  webhook-worker:
+    container_name: ai-customer-service-a0-webhook-worker
+
+  admin:
+    container_name: ai-customer-service-a0-admin
+    ports: !override
+      - "${ADMIN_PORT:-15175}:8080"
+
+  agent:
+    container_name: ai-customer-service-a0-agent
+    ports: !override
+      - "${AGENT_PORT:-15174}:8080"
+
+  prometheus:
+    container_name: ai-customer-service-a0-prometheus
+    ports: !override
+      - "${PROMETHEUS_PORT:-19090}:9090"
+    volumes: !override
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    container_name: ai-customer-service-a0-grafana
+    ports: !override
+      - "${GRAFANA_PORT:-13001}:3000"
+    volumes: !override
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards/provider.yml:/etc/grafana/provisioning/dashboards/provider.yml:ro
+      - ./grafana/dashboards/ai-customer-service.json:/var/lib/grafana/dashboards/ai-customer-service.json:ro
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  postgres_data:
+    name: ai_a0_postgres_data
+    external: true
+  redis_data:
+    name: ai_a0_redis_data
+    external: true
+  chatwoot_storage:
+    name: ai_a0_chatwoot_storage
+    external: true
+  qdrant_data:
+    name: ai_a0_qdrant_data
+    external: true
+  prometheus_data:
+    name: ai_a0_prometheus_data
+    external: true
+  grafana_data:
+    name: ai_a0_grafana_data
+    external: true
+
+networks:
+  internal:
+    name: ai-customer-service-a0-network
+    driver: bridge

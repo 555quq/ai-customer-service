@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "product": "ai-customer-service",
+  "version": "1.0.0",
+  "release_date": "2026-08-26",
+  "standard_ai_provider": "local",
+  "compose_files": {
+    "standard": ["docker-compose.yml"],
+    "production": ["docker-compose.yml", "docker-compose.production.yml"],
+    "dify_enhanced": ["docker-compose.yml", "docker-compose.dify.yml"]
+  },
+  "external_dify": {
+    "tested_release": "1.16.1",
+    "deployment_owner": "customer",
+    "required_profile": "dify"
+  },
+  "runtime_images": {
+    "bridge": "ai-customer-service-bridge:1.0.0",
+    "admin": "ai-customer-service-admin:1.0.0",
+    "agent": "ai-customer-service-agent:1.0.0",
+    "postgres": "postgres:14.23-alpine",
+    "redis": "redis:7.4.10-alpine",
+    "chatwoot": "chatwoot/chatwoot:v3.11.0",
+    "qdrant": "qdrant/qdrant:v1.18.3",
+    "prometheus": "prom/prometheus:v3.13.2",
+    "grafana": "grafana/grafana:13.1.2",
+    "caddy": "caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+    "node_build": "node:20.19.4-alpine3.22@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799",
+    "pnpm_build": "10.34.0",
+    "nginx_frontend": "nginx:1.29.1-alpine3.22@sha256:42a516af16b852e33b7682d5ef8acbd5d13fe08fecadc7ed98605ba5e3b26ab8"
+  },
+  "data_contracts": {
+    "backup_schema": 1,
+    "doctor_schema": 1,
+    "release_check_schema": 1,
+    "runtime_config_encryption": "fernet:v1"
+  },
+  "python_dependencies": {
+    "cryptography": "50.0.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "ai": {
+    "confidence_threshold": 0.7,
+    "max_retries": 3,
+    "timeout": 30
+  },
+  "handoff": {
+    "keywords": [
+      "人工",
+      "转人工",
+      "人工客服",
+      "投诉",
+      "退款"
+    ],
+    "unresolved_threshold": 3,
+    "auto_assign": true
+  },
+  "cache": {
+    "ttl": 3600,
+    "enabled": true
+  },
+  "rate_limit": {
+    "requests_per_minute": 60,
+    "burst": 100
+  },
+  "cache.ttl": 3600,
+  "ai.confidence_threshold": 0.7
+}

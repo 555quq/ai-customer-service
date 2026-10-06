@@ -1,0 +1,375 @@
+name: ai-customer-service
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: "${POSTGRES_IMAGE:-postgres:14.23-alpine@sha256:f1341c01408dc7278e9d365ed4f860cd3f87dd16b4464ac326fc0f422083a579}"
+    container_name: ai-customer-service-postgres
+    environment:
+      POSTGRES_DB: chatwoot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # Redis 缓存
+  redis:
+    image: "${REDIS_IMAGE:-redis:7.4.10-alpine@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2}"
+    container_name: ai-customer-service-redis
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - always
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${REDIS_PORT_EXTERNAL:-16379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # Chatwoot 客服工作台
+  chatwoot-web:
+    image: "${CHATWOOT_IMAGE:-chatwoot/chatwoot:v3.11.0@sha256:f085e3339c70ba8fe2d8219a02c831cd823024a6c5ca5f23a143b77047d5485d}"
+    container_name: ai-customer-service-chatwoot-web
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - rm -f /app/tmp/pids/server.pid && exec bundle exec rails s -p 3000 -b 0.0.0.0
+    environment:
+      NODE_ENV: production
+      RAILS_ENV: production
+      INSTALLATION_ENV: docker
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/chatwoot
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE must be set}
+      FRONTEND_URL: ${CHATWOOT_FRONTEND_URL:-http://localhost:3000}
+      FORCE_SSL: "false"
+      ENABLE_ACCOUNT_SIGNUP: "true"
+      # 本地开发：跳过邮箱确认（避免邮件服务阻塞账号激活）
+      DISABLE_EMAIL_CONFIRMATION: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chatwoot-prepare:
+        condition: service_completed_successfully
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${CHATWOOT_PORT:-3000}:3000"
+    volumes:
+      - chatwoot_storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "ruby -rnet/http -e 'exit(Net::HTTP.get_response(URI(\"http://127.0.0.1:3000\")).is_a?(Net::HTTPSuccess) ? 0 : 1)' "]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # Chatwoot 数据库初始化
+  chatwoot-prepare:
+    image: "${CHATWOOT_IMAGE:-chatwoot/chatwoot:v3.11.0@sha256:f085e3339c70ba8fe2d8219a02c831cd823024a6c5ca5f23a143b77047d5485d}"
+    container_name: ai-customer-service-chatwoot-prepare
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        bundle exec rails db:create db:migrate
+    environment:
+      NODE_ENV: production
+      RAILS_ENV: production
+      INSTALLATION_ENV: docker
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/chatwoot
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE must be set}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: "no"
+
+  # Chatwoot Worker (后台任务)
+  chatwoot-worker:
+    image: "${CHATWOOT_IMAGE:-chatwoot/chatwoot:v3.11.0@sha256:f085e3339c70ba8fe2d8219a02c831cd823024a6c5ca5f23a143b77047d5485d}"
+    container_name: ai-customer-service-chatwoot-worker
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    environment:
+      NODE_ENV: production
+      RAILS_ENV: production
+      INSTALLATION_ENV: docker
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/chatwoot
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?SECRET_KEY_BASE must be set}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      chatwoot-prepare:
+        condition: service_completed_successfully
+    volumes:
+      - chatwoot_storage:/app/storage
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # Qdrant 向量数据库（开源 AI 引擎 RAG 检索）
+  qdrant:
+    image: "${QDRANT_IMAGE:-qdrant/qdrant:v1.18.3@sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286}"
+    container_name: ai-customer-service-qdrant
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333' "]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # Bridge Service（Chatwoot、AI 引擎和前端之间的统一后端）
+  webhook-gateway:
+    image: ai-customer-service-webhook-adapter:${APP_VERSION:-1.0.0}
+    build:
+      context: ./webhook-adapter
+      dockerfile: Dockerfile
+    container_name: ai-customer-service-webhook-gateway
+    environment:
+      CHATWOOT_ADAPTER_INGRESS_TOKEN: ${CHATWOOT_ADAPTER_INGRESS_TOKEN:-}
+      WEBHOOK_ADAPTER_REDIS_URL: redis://redis:6379/0
+      WEBHOOK_ADAPTER_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  webhook-worker:
+    image: ai-customer-service-webhook-adapter:${APP_VERSION:-1.0.0}
+    build:
+      context: ./webhook-adapter
+      dockerfile: Dockerfile
+    container_name: ai-customer-service-webhook-worker
+    command: ["python", "-m", "src.worker"]
+    environment:
+      CHATWOOT_WEBHOOK_SECRET: ${CHATWOOT_WEBHOOK_SECRET:-}
+      WEBHOOK_ADAPTER_REDIS_URL: redis://redis:6379/0
+      WEBHOOK_ADAPTER_REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      CHATWOOT_ADAPTER_BRIDGE_URL: http://bridge:8000/webhook/chatwoot
+      WEBHOOK_ADAPTER_CONCURRENCY: ${WEBHOOK_ADAPTER_CONCURRENCY:-8}
+      WEBHOOK_ADAPTER_PREFETCH: ${WEBHOOK_ADAPTER_PREFETCH:-64}
+      WEBHOOK_ADAPTER_BUFFER_LIMIT: ${WEBHOOK_ADAPTER_BUFFER_LIMIT:-256}
+      WEBHOOK_ADAPTER_SHUTDOWN_GRACE_SECONDS: ${WEBHOOK_ADAPTER_SHUTDOWN_GRACE_SECONDS:-30}
+      WEBHOOK_ADAPTER_LEASE_TTL_SECONDS: ${WEBHOOK_ADAPTER_LEASE_TTL_SECONDS:-15}
+      WEBHOOK_ADAPTER_LEASE_RENEW_SECONDS: ${WEBHOOK_ADAPTER_LEASE_RENEW_SECONDS:-5}
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose:
+      - "9101"
+    healthcheck:
+      test: ["CMD", "python", "-m", "src.healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  bridge:
+    image: ai-customer-service-bridge:${APP_VERSION:-1.0.0}
+    build:
+      context: ./bridge-service
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${BRIDGE_PIP_INDEX_URL:-https://pypi.org/simple}
+    container_name: ai-customer-service-bridge
+    env_file:
+      - ./bridge-service/.env
+    environment:
+      CHATWOOT_BASE_URL: http://chatwoot-web:3000
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
+      AI_QDRANT_HOST: qdrant
+      AI_QDRANT_PORT: 6333
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:-}
+      CHATWOOT_WEBHOOK_SECRET: ${CHATWOOT_WEBHOOK_SECRET:-}
+      WEBHOOK_ALLOW_LEGACY_V1: "false"
+      CHATWOOT_ADAPTER_GATEWAY_URL: http://webhook-gateway:8080
+      CHATWOOT_ADAPTER_INGRESS_TOKEN: ${CHATWOOT_ADAPTER_INGRESS_TOKEN:-}
+      AUTH_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      chatwoot-web:
+        condition: service_healthy
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${BRIDGE_PORT:-8000}:8000"
+    volumes:
+      - ./bridge-service/data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # 首次启动需下载并加载本地 embedding 模型；缓存持久化后重启会更快。
+      start_period: 180s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  admin:
+    image: ai-customer-service-admin:${APP_VERSION:-1.0.0}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        APP: admin
+        NODE_IMAGE: ${NODE_IMAGE:-node:20.19.4-alpine3.22@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.29.1-alpine3.22@sha256:42a516af16b852e33b7682d5ef8acbd5d13fe08fecadc7ed98605ba5e3b26ab8}
+        VITE_BRIDGE_API_BASE: ""
+    container_name: ai-customer-service-admin
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${ADMIN_PORT:-5175}:8080"
+    depends_on:
+      bridge:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+    restart: unless-stopped
+
+  agent:
+    image: ai-customer-service-agent:${APP_VERSION:-1.0.0}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        APP: agent
+        NODE_IMAGE: ${NODE_IMAGE:-node:20.19.4-alpine3.22@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.29.1-alpine3.22@sha256:42a516af16b852e33b7682d5ef8acbd5d13fe08fecadc7ed98605ba5e3b26ab8}
+        VITE_BRIDGE_API_BASE: ""
+    container_name: ai-customer-service-agent
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${AGENT_PORT:-5174}:8080"
+    depends_on:
+      bridge:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # Prometheus 指标收集
+  prometheus:
+    image: "${PROMETHEUS_IMAGE:-prom/prometheus:v3.13.2@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69}"
+    container_name: ai-customer-service-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      bridge:
+        condition: service_healthy
+      webhook-gateway:
+        condition: service_healthy
+      webhook-worker:
+        condition: service_healthy
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # Grafana 可视化面板
+  grafana:
+    image: "${GRAFANA_IMAGE:-grafana/grafana:13.1.2@sha256:d177053ab62253815f130d81504f77063baf5fd4ca93299d6048453bd31e047a}"
+    container_name: ai-customer-service-grafana
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboards/provider.yml:/etc/grafana/provisioning/dashboards/provider.yml
+      - ./grafana/dashboards/ai-customer-service.json:/var/lib/grafana/dashboards/ai-customer-service.json
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${GRAFANA_PORT:-3001}:3000"
+    networks:
+      - internal
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: ai_postgres_data
+    external: true
+  redis_data:
+    name: ai_redis_data
+    external: true
+  chatwoot_storage:
+    name: ai_chatwoot_storage
+    external: true
+  qdrant_data:
+    name: ai_qdrant_data
+    external: true
+  prometheus_data:
+    name: ai_prometheus_data
+    external: true
+  grafana_data:
+    name: ai_grafana_data
+    external: true
+
+networks:
+  internal:
+    name: ai-customer-service-network
+    driver: bridge
